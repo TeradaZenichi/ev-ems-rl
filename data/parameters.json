@@ -1,0 +1,11 @@
+    {
+        "EDS":{
+            "Pmax": 50,
+            "Pmin": 30,
+            "cost": 0.1
+        },
+        "EVCS": ["BOULDER / JUNCTION ST1", "BOULDER / ALPINE ST1"],
+        "RL":{
+            "Penalty": 0.1
+        }
+    }
