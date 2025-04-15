@@ -1,0 +1,96 @@
+{
+  "DDQN": {
+    "start_idx": 0,
+    "episode_length": 288,
+    "num_episodes": 1000,
+    "batch_size": 64,
+    "gamma": 0.99,
+    "epsilon_start": 1.0,
+    "epsilon_final": 0.05,
+    "epsilon_decay": 300,
+    "target_update": 5,
+    "replay_buffer_capacity": 10000,
+    "learning_rate": 0.0001,
+    "discrete_action_size": 201,
+    "hl_number": 50,
+    "hl_size": 512,
+    "model_save_name": "ddqn_energy.pth",
+    "reward_json_name": "episode_rewards_ddqn.json",
+    "training_txt_name": "training_details_ddqn.txt",
+    "observations": [
+      "pmax",
+      "pmin",
+      "soc_ratio",
+      "pv",
+      "load",
+      "hour_sin"
+    ]
+  },
+  "CDDQN": {
+    "start_idx": 0,
+    "episode_length": 288,
+    "num_episodes": 1000,
+    "batch_size": 64,
+    "gamma": 0.99,
+    "epsilon_start": 1.0,
+    "epsilon_final": 0.05,
+    "epsilon_decay": 300,
+    "target_update": 5,
+    "replay_buffer_capacity": 1000,
+    "learning_rate": 0.001,
+    "discrete_action_size": 201,
+    "hl_number": 5,
+    "hl_size": 256,
+    "dropout_rate": 0.2,
+    "model_save_name": "cddqn_energy.pth",
+    "reward_json_name": "episode_rewards_cddqn.json",
+    "training_txt_name": "training_details_cddqn.txt",
+    "observations": [
+      "pmax",
+      "pmin",
+      "soc",
+      "pv",
+      "load",
+      "hour_sin"
+    ],
+    "main_observations": [
+      "pv",
+      "load",
+      "hour_sin"
+    ],
+    "conditional_observations": [
+      "soc",
+      "pmax",
+      "pmin"
+    ]
+  },
+  "MHADDQN": {
+    "start_idx": 0,
+    "episode_length": 288,
+    "num_episodes": 1000,
+    "batch_size": 64,
+    "gamma": 0.99,
+    "epsilon_start": 1.0,
+    "epsilon_final": 0.05,
+    "epsilon_decay": 300,
+    "target_update": 5,
+    "replay_buffer_capacity": 10000,
+    "learning_rate": 0.0001,
+    "discrete_action_size": 201,
+    "observations": [
+      "pmax",
+      "pmin",
+      "soc",
+      "pv",
+      "load",
+      "hour_sin"
+    ],
+    "hl_size": 128,         
+    "num_heads": 4,         
+    "mha_dim": 64,          
+    "ff_dim": 128,         
+    "model_save_name": "mhaddqn_energy.pth",
+    "reward_json_name": "episode_rewards_mhaddqn.json",
+    "training_txt_name": "training_details_mhaddqn.txt"
+  }
+}

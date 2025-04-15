@@ -3,17 +3,27 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class DQN(nn.Module):
-    def __init__(self, state_dim, action_dim):
+    def __init__(self, state_dim, action_dim, hidden_layers=[128, 128, 128, 128, 128]):
+        """
+        Parameters:
+          state_dim: Dimensão da entrada.
+          action_dim: Número de ações (dimensão da saída).
+          hidden_layers: Lista com os tamanhos das camadas ocultas.
+        """
         super(DQN, self).__init__()
-        self.fc1 = nn.Linear(state_dim, 64)
-        self.fc2 = nn.Linear(64, 64)
-        self.fc3 = nn.Linear(64, action_dim)
+        layers = []
+        input_dim = state_dim
+        # Cria as camadas ocultas dinamicamente
+        for hidden_dim in hidden_layers:
+            layers.append(nn.Linear(input_dim, hidden_dim))
+            layers.append(nn.ReLU())
+            input_dim = hidden_dim
+        # Camada de saída
+        layers.append(nn.Linear(input_dim, action_dim))
+        self.net = nn.Sequential(*layers)
         
     def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
-        return x
+        return self.net(x)
 
 
 class LSTMDQN(nn.Module):
@@ -51,3 +61,53 @@ class LSTMDQN(nn.Module):
         last_out = out[:, -1, :]  # shape: (batch, hidden_size)
         q_values = self.fc(last_out)
         return q_values, hidden
+    
+
+class SelfAttentionDQN(nn.Module):
+    def __init__(self, input_dim, action_dim, embed_dim=128, num_heads=4, num_layers=1, seq_len=1):
+        """
+        Parâmetros:
+          input_dim: Dimensão de cada token da entrada.
+          action_dim: Número de ações (dimensão da saída dos Q-values).
+          embed_dim: Dimensão do espaço de embedding.
+          num_heads: Número de cabeças na atenção multi-cabeça.
+          num_layers: Número de camadas do Transformer Encoder.
+          seq_len: Comprimento da sequência de entrada.
+        """
+        super(SelfAttentionDQN, self).__init__()
+        self.seq_len = seq_len
+        
+        self.input_projection = nn.Linear(input_dim, embed_dim)
+        self.positional_encoding = nn.Parameter(torch.randn(1, seq_len, embed_dim))
+        encoder_layer = nn.TransformerEncoderLayer(d_model=embed_dim, nhead=num_heads, batch_first=True)
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        self.fc_out = nn.Linear(embed_dim, action_dim)
+    
+    def forward(self, x):
+        """
+        x: tensor de entrada com shape (batch_size, seq_len, input_dim)
+        
+        Retorna:
+          q_values: tensor com shape (batch_size, action_dim)
+        """
+        x = self.input_projection(x)
+        x = x + self.positional_encoding[:, :x.size(1), :]
+        x = self.transformer_encoder(x)  # (batch_size, seq_len, embed_dim)
+        x = x.mean(dim=1)  # (batch_size, embed_dim)
+        q_values = self.fc_out(x)  # (batch_size, action_dim)
+        return q_values
+
+# Exemplo de uso:
+if __name__ == "__main__":
+    # Suponha que cada estado seja representado por 20 features e queremos uma sequência de 5 tokens
+    batch_size = 8
+    seq_len = 5
+    input_dim = 20
+    action_dim = 4  # Número de ações discretas
+
+    # Cria uma entrada aleatória com shape (batch_size, seq_len, input_dim)
+    dummy_input = torch.randn(batch_size, seq_len, input_dim)
+    
+    model = SelfAttentionDQN(input_dim=input_dim, action_dim=action_dim, seq_len=seq_len)
+    q_vals = model(dummy_input)
+    print("Q-values shape:", q_vals.shape)  # Esperado: (8, 4)
