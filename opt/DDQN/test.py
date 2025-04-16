@@ -4,12 +4,11 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from opt.env import EnergyEnv
-from opt.DDQN.model import DDQN, CDDQN
+from opt.DDQN.model import DDQN, CDDQN, MHADDQN
 
 def test_model(START_IDX, END_IDX):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Load global and model-specific parameters
     with open(os.path.join("data", "parameters.json"), "r") as f:
         global_params = json.load(f)
     with open(os.path.join("opt/DDQN", "models.json"), "r") as f:
@@ -18,7 +17,6 @@ def test_model(START_IDX, END_IDX):
     model_type = global_params["MODEL"]["MODEL_TYPE"].upper()
     model_params = model_data[model_type]
 
-    # Load environment and action configuration
     episode_length = END_IDX - START_IDX
     obs_keys = model_params.get("observations")
     env = EnergyEnv(data_dir="data", observations=obs_keys, start_idx=START_IDX, episode_length=episode_length, test=True)
@@ -26,7 +24,6 @@ def test_model(START_IDX, END_IDX):
     discrete_actions = np.linspace(a_low, a_high, model_params["discrete_action_size"])
     action_dim = len(discrete_actions)
 
-    # Model instantiation
     hl_number = model_params.get("hl_number", 5)
     hl_size = model_params.get("hl_size", 128)
     model_save_name = model_params.get("model_save_name")
@@ -39,11 +36,15 @@ def test_model(START_IDX, END_IDX):
         dropout_rate = model_params.get("dropout_rate", 0.0)
         model = CDDQN(main_dim, cond_dim, action_dim, hl_number=hl_number,
                       hl_size=hl_size, dropout_rate=dropout_rate).to(device)
+    elif model_type == "MHADDQN":
+        state_dim = env.observation_space.shape[0]
+        num_heads = model_params.get("num_heads", 4)
+        ff_dim = model_params.get("ff_dim", 128)
+        model = MHADDQN(state_dim, action_dim, hl_size=hl_size, num_heads=num_heads, ff_dim=ff_dim).to(device)
     else:
         state_dim = env.observation_space.shape[0]
         model = DDQN(state_dim, action_dim, hl_number=hl_number, hl_size=hl_size).to(device)
 
-    # Load weights
     model.load_state_dict(torch.load(os.path.join("models", model_save_name), map_location=device))
     model.eval()
 

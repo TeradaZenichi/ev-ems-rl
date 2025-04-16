@@ -21,7 +21,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Relative imports: EnergyEnv is located in the parent folder (opt/env.py)
 from ..env import EnergyEnv
-from .model import DDQN, CDDQN
+from .model import DDQN, CDDQN, MHADDQN
 
 # -------------------------------
 # Replay Buffer and Action Selection
@@ -41,11 +41,6 @@ class ReplayBuffer:
         return len(self.buffer)
 
 def select_action(state_input, net, epsilon, actions, model_type):
-    """
-    Epsilon-greedy action selection.
-    For DDQN, state_input is a flat vector.
-    For CDDQN, state_input is a tuple (main_state, cond_state).
-    """
     if random.random() < epsilon:
         return random.randrange(len(actions))
     if model_type == "CDDQN":
@@ -62,17 +57,14 @@ def select_action(state_input, net, epsilon, actions, model_type):
 # Training Function
 # -------------------------------
 def train():
-    # Load configurations
     with open(os.path.join("data", "parameters.json"), "r") as f:
         global_params = json.load(f)
     with open(os.path.join("opt/DDQN", "models.json"), "r") as f:
         model_data = json.load(f)
-        
-    # Global MODEL_TYPE must be "DDQN" or "CDDQN" (uppercase)
+
     model_type = global_params["MODEL"]["MODEL_TYPE"].upper()
     train_params = model_data[model_type]
-    
-    # Hyperparameters common to both models
+
     num_episodes      = train_params["num_episodes"]
     episode_length    = train_params["episode_length"]
     batch_size        = train_params["batch_size"]
@@ -90,23 +82,19 @@ def train():
     model_save_name   = train_params.get("model_save_name", "ddqn_energy.pth")
     reward_json_name  = train_params.get("reward_json_name", "episode_rewards_ddqn.json")
     training_txt_name = train_params.get("training_txt_name", "training_details_ddqn.txt")
-    
-    # Create environment; env.reset() returns a flat observation vector.
+
     env = EnergyEnv(data_dir="data", observations=train_params["observations"],
                     start_idx=start_idx, episode_length=episode_length)
     flat_state = env.reset()  
-    # Reconstruct full_obs from flat_state using the order from "observations"
     obs_keys = train_params["observations"]
     full_obs = {key: flat_state[i] for i, key in enumerate(obs_keys)}
-    
+
     state_dim = env.observation_space.shape[0]
     a_low, a_high = env.action_space.low[0], env.action_space.high[0]
     discrete_actions = np.linspace(a_low, a_high, discrete_size)
     action_dim = len(discrete_actions)
-    
-    # Instantiate the model
+
     if model_type == "CDDQN":
-        # Extract lists of keys for main and conditional features
         main_obs_keys = train_params.get("main_observations")
         cond_obs_keys = train_params.get("conditional_observations")
         if main_obs_keys is None or cond_obs_keys is None:
@@ -117,17 +105,22 @@ def train():
                            hl_size=hl_size, dropout_rate=train_params.get("dropout_rate", 0.0)).to(device)
         target_net = CDDQN(main_dim, cond_dim, action_dim, hl_number=hl_number,
                            hl_size=hl_size, dropout_rate=train_params.get("dropout_rate", 0.0)).to(device)
+    elif model_type == "MHADDQN":
+        num_heads = train_params.get("num_heads", 4)
+        ff_dim    = train_params.get("ff_dim", 128)
+        policy_net = MHADDQN(state_dim, action_dim, hl_size=hl_size, num_heads=num_heads, ff_dim=ff_dim).to(device)
+        target_net = MHADDQN(state_dim, action_dim, hl_size=hl_size, num_heads=num_heads, ff_dim=ff_dim).to(device)
     else:
         policy_net = DDQN(state_dim, action_dim, hl_number=hl_number, hl_size=hl_size).to(device)
         target_net = DDQN(state_dim, action_dim, hl_number=hl_number, hl_size=hl_size).to(device)
-    
+
     policy_net.train()
     target_net.load_state_dict(policy_net.state_dict())
     target_net.eval()
-    
+
     optimizer = optim.Adam(policy_net.parameters(), lr=learning_rate)
     replay_buffer = ReplayBuffer(buffer_capacity)
-    
+
     episode_rewards, training_details = [], []
     
     # Training loop

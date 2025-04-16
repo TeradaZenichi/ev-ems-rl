@@ -2,21 +2,21 @@
   "DQN": {
     "start_idx": 0,
     "episode_length": 288,
-    "num_episodes": 5000,
+    "num_episodes": 1000,
     "batch_size": 64,
     "gamma": 0.99,
     "epsilon_start": 1.0,
     "epsilon_final": 0.05,
-    "epsilon_decay": 3000,
+    "epsilon_decay": 300,
     "target_update": 5,
     "replay_buffer_capacity": 10000,
     "learning_rate": 0.001,
-    "discrete_action_size": 101,
+    "discrete_action_size": 1001,
     "hidden_layers": [128, 128, 128],
     "model_save_name": "dqn_energy.pth",
     "reward_json_name": "episode_rewards_dqn.json",
     "training_txt_name": "training_details_dqn.txt",
-    "observations": ["pmax","pmin","soc_ratio", "pv", "load", "hour_sin"]
+    "observations": ["pmax","pmin","soc", "pv", "load", "hour_sin"]
   },
   "LSTMDQN": {
     "start_idx": 0,
@@ -39,8 +39,8 @@
   },
   "SelfAttentionDQN": {
     "start_idx": 0,
-    "episode_length": 1440,
-    "num_episodes": 10000,
+    "episode_length": 288,
+    "num_episodes": 1000,
     "batch_size": 64,
     "gamma": 0.99,
     "epsilon_start": 1.0,
@@ -57,6 +57,6 @@
     "model_save_name": "selfattention_energy.pth",
     "reward_json_name": "episode_rewards_selfattention.json",
     "training_txt_name": "training_details_selfattention.txt",
-    "observations": ["pmax", "pmin", "soc_ratio", "balance_ratio", "hour_sin", "day_sin", "month_sin"]
+    "observations": ["pmax", "pmin", "soc", "pv", "load", "hour_sin"]
   }
 }

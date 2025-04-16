@@ -76,7 +76,7 @@
     "target_update": 5,
     "replay_buffer_capacity": 10000,
     "learning_rate": 0.0001,
-    "discrete_action_size": 501,
+    "discrete_action_size": 201,
     "observations": [
       "pmax",
       "pmin",
@@ -86,7 +86,7 @@
       "hour_sin"
     ],
     "hl_size": 128,         
-    "num_heads": 8,         
+    "num_heads": 4,         
     "mha_dim": 64,          
     "ff_dim": 128,         
     "model_save_name": "mhaddqn_energy.pth",

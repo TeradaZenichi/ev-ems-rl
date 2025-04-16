@@ -44,8 +44,10 @@ def test_model(START_IDX, END_IDX):
                                  num_layers=num_layers, seq_len=seq_len).to(device)
         save_name = test_params.get("model_save_name", "selfattention_energy.pth")
     else:
-        model = DQN(state_dim, action_dim).to(device)
+        hidden_layers = test_params.get("hidden_layers", [128, 128, 128, 128, 128])
+        model = DQN(state_dim, action_dim, hidden_layers=hidden_layers).to(device)
         save_name = test_params.get("model_save_name", "dqn_energy.pth")
+
     
     model.load_state_dict(torch.load(os.path.join("models", save_name), map_location=device))
     model.eval()

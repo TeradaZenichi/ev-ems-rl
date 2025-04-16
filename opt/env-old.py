@@ -6,6 +6,13 @@ import os
 from gym import spaces
 
 class EnergyEnv(gym.Env):
+    """
+    Simulation environment for a system with:
+      - Photovoltaic Generation (PV)
+      - Load (demand)
+      - Battery (BESS)
+      - Grid energy cost
+    """
     def __init__(self,
                  data_dir='data',
                  timestep_min=5,
@@ -15,57 +22,71 @@ class EnergyEnv(gym.Env):
                  observations=None):
         super(EnergyEnv, self).__init__()
 
+        # Load parameters from file
         with open(os.path.join(data_dir, 'parameters.json'), 'r') as f:
             self.params = json.load(f)
 
         self.Pnom = self.params.get("Pnom", 1)
+
+        # Set bonus parameter from RL section (default is 0 if not provided)
         self.bonus = self.params["RL"].get("Bonus", 0)
 
-        self.obs_keys = observations if observations else ["balance_ratio", "soc_ratio", "hour_sin"]
-        self.bess_params = self.params["BESS"]
-        self.initial_soc = self.bess_params["SoC0"]
-        self.Emax = self.bess_params["Emax"]
-        self.Pmax_charge = self.bess_params["Pmax_c"]
+        # BESS parameters and observation keys
+        self.obs_keys       = observations if observations else ["balance_ratio", "soc_ratio", "hour_sin"]
+        self.bess_params    = self.params["BESS"]
+        self.initial_soc    = self.bess_params["SoC0"]
+        self.Emax           = self.bess_params["Emax"]
+        self.Pmax_charge    = self.bess_params["Pmax_c"]
         self.Pmax_discharge = self.bess_params["Pmax_d"]
-        self.eff = self.bess_params["eff"]
-        self.dt = self.params["timestep"] / 60
-        self.PEDS_max = self.params["EDS"]["Pmax"]
-        self.PEDS_min = self.params["EDS"]["Pmin"]
-        self.PVmax = self.params["PV"]["Pmax"]
-        self.Loadmax = self.params["Load"]["Pmax"]
-        self.cost_dict = self.params["EDS"]["cost"]
-        self.test_mode = test
-
-        self.mode = self.params["ENV"]["MODE"]
-        self.randomize = self.params["ENV"]["randomize"]
-        self.curriculum = self.params["ENV"]["curriculum"]
-        self.curriculum_steps = int(self.params["ENV"]["curriculum_steps"])
-        self.curriculum_increment = float(self.params["ENV"]["curriculum_increment"])
-        self.curriculum_max = float(self.params["ENV"]["curriculum_max"])
-        self.difficulty = float(self.params["ENV"]["difficulty"])
+        self.eff            = self.bess_params["eff"]
+        self.dt             = self.params["timestep"] / 60
+        self.PEDS_max       = self.params["EDS"]["Pmax"]
+        self.PEDS_min       = self.params["EDS"]["Pmin"]
+        self.PVmax          = self.params["PV"]["Pmax"]
+        self.Loadmax        = self.params["Load"]["Pmax"]
+        self.cost_dict      = self.params["EDS"]["cost"]
+        self.test_mode      = test
+        
+        # Environment parameters
+        self.mode                   = self.params["ENV"]["MODE"]
+        self.randomize              = self.params["ENV"]["randomize"]
+        self.curriculum             = self.params["ENV"]["curriculum"]
+        self.curriculum_steps       = int(self.params["ENV"]["curriculum_steps"])
+        self.curriculum_increment   = float(self.params["ENV"]["curriculum_increment"])
+        self.curriculum_max         = float(self.params["ENV"]["curriculum_max"])
+        self.difficulty             = float(self.params["ENV"]["difficulty"])
         self.randomize_observations = self.params["ENV"]["randomize_observations"]
 
-        self.pv_data = pd.read_csv(os.path.join(data_dir, 'pv_5min.csv'), index_col='timestamp', parse_dates=['timestamp'])
-        self.load_data = pd.read_csv(os.path.join(data_dir, 'load_5min.csv'), index_col='timestamp', parse_dates=['timestamp'])
-        self.pv_series = self.pv_data['p_norm']
+        # --- Load PV and Load data ---
+        self.pv_data    = pd.read_csv(os.path.join(data_dir, 'pv_5min.csv'),
+                                        index_col='timestamp', parse_dates=['timestamp'])
+        self.load_data  = pd.read_csv(os.path.join(data_dir, 'load_5min.csv'),
+                                        index_col='timestamp', parse_dates=['timestamp'])
+        self.pv_series  = self.pv_data['p_norm']
         self.load_series = self.load_data['p_norm']
 
-        self.start_idx = start_idx
+        # Episode control
+        self.start_idx      = start_idx
         self.episode_length = episode_length
-        self.current_idx = self.start_idx
-        self.end_idx = self.start_idx + self.episode_length
+        self.current_idx    = self.start_idx
+        self.end_idx        = self.start_idx + self.episode_length
 
-        self.action_space = spaces.Box(low=-self.Pmax_discharge, high=self.Pmax_charge, shape=(1,), dtype=np.float32)
-
+        # --- Define action space ---
+        self.action_space = spaces.Box(low=-self.Pmax_discharge,
+                                       high=self.Pmax_charge,
+                                       shape=(1,),
+                                       dtype=np.float32)
+        # Initialize internal state before defining observation space
         self.soc = self.initial_soc
         self.done = False
 
+        # Define observation space dynamically based on _get_obs()
         flat_obs, _ = self._get_obs()
         obs_dim = flat_obs.shape[0]
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32)
 
         self.reset()
-    
+
     def reset(self):
         """
         Resets the episode.
@@ -132,45 +153,21 @@ class EnergyEnv(gym.Env):
 
         return self._get_obs()[0]  # Return the flattened observation
 
-    def _update_soc(self, p_bess):
-        delta_soc = (p_bess * self.eff * self.dt) / self.Emax if p_bess >= 0 else (p_bess / self.eff * self.dt) / self.Emax
-        soc_before = self.soc
-        self.soc += delta_soc
-        bess_penalty = 0.0
-        if self.soc > 1.0:
-            overflow = self.soc - 1.0
-            bess_penalty += overflow * abs(p_bess) * self.params["RL"].get("bess_penalty", 10.0)
-            self.soc = 1.0
-        elif self.soc < 0.0:
-            underflow = -self.soc
-            bess_penalty += underflow * abs(p_bess) * self.params["RL"].get("bess_penalty", 10.0)
-            self.soc = 0.0
-        return bess_penalty * self.dt
-
-    def _compute_cost(self, p_grid, hour_str):
-        tariff = self.cost_dict.get(hour_str, 0.4)
-        return (p_grid * self.dt if p_grid > 0 else 0) * tariff, tariff
-
-    def _compute_penalty(self, p_grid):
-        penalty = self.params["RL"]["Penalty"]
-        if p_grid > self.PEDS_max:
-            return penalty * (p_grid - self.PEDS_max) * self.dt
-        elif p_grid < -self.PEDS_min:
-            return penalty * (-self.PEDS_min - p_grid) * self.dt
-        return 0.0
-
-    def _compute_alignment_bonus(self, p_bess, p_pv, p_load):
-        expected_discharge = max(0, p_load - p_pv)
-        # expected_charge = max(0, p_pv - p_load)
-        misalignment = 0
-
-        if p_bess < 0:
-            excess_discharge = abs(p_bess) - expected_discharge
-            misalignment = max(0, excess_discharge)
-
-        return -self.params["RL"].get("misalignment_penalty", 0.0) * misalignment * self.dt
 
     def step(self, action):
+        """
+        Executes one simulation step.
+        
+        Parameters:
+            action (array): BESS charging/discharging power (kW).
+            
+        Returns:
+            flat_obs (np.array): Next state as a flattened vector.
+            reward (float): Reward (negative energy cost plus any penalty).
+            done (bool): True if episode ended.
+            info (dict): Additional info with extra keys.
+        """
+        # Clip the action and enforce limits
         p_bess = np.clip(action[0], -self.Pmax_discharge, self.Pmax_charge)
         if p_bess > 0:
             max_allowed = ((1.0 - self.soc) * self.Emax) / (self.eff * self.dt)
@@ -183,43 +180,59 @@ class EnergyEnv(gym.Env):
         p_pv = self.pv_series.iloc[self.current_idx] * self.PVmax
         p_load = self.load_series.iloc[self.current_idx] * self.Loadmax
 
-        overflow_penalty = self._update_soc(p_bess)
-        p_grid = p_load - p_pv + p_bess
-        cost, tariff = self._compute_cost(p_grid, t_current.strftime("%H:00"))
-        penalty_value = self._compute_penalty(p_grid)
-        misalignment_penalty = self._compute_alignment_bonus(p_bess, p_pv, p_load)
+        # Update battery SoC
+        delta_soc = (p_bess * self.eff * self.dt) / self.Emax if p_bess >= 0 else (p_bess / self.eff * self.dt) / self.Emax
+        self.soc = np.clip(self.soc + delta_soc, 0.0, 1.0)
 
-        reward = -cost - penalty_value - overflow_penalty + misalignment_penalty
+        p_grid = p_load - p_pv + p_bess
+        hour_str = t_current.strftime("%H:00")
+        tariff = self.cost_dict.get(hour_str, 0.4)
+        cost = (p_grid * self.dt if p_grid > 0 else 0) * tariff
+
+        # Calculate base reward with penalties
+        reward = -cost
+        penalty = self.params["RL"]["Penalty"]
+        if p_grid > self.PEDS_max:
+            reward -= penalty * (p_grid - self.PEDS_max)
+        elif p_grid < -self.PEDS_min:
+            reward -= penalty * (-self.PEDS_min - p_grid)
+
+        # Calculate balance (excess PV generation minus load)
         balance_ratio = p_pv - p_load
-        bonus_value = 0
+        # Apply bonus based on the new parameter self.bonus:
+        # Bonus is added when the agent takes action aligned with the energy balance.
         if balance_ratio > 0 and p_bess > 0:
-            bonus_value = self.bonus * balance_ratio
+            reward += self.bonus * balance_ratio
         elif balance_ratio < 0 and p_bess < 0:
-            bonus_value = self.bonus * abs(balance_ratio)
-        reward += bonus_value * self.dt
+            reward += self.bonus * abs(balance_ratio)
 
         self.current_idx += 1
         if self.current_idx >= self.end_idx:
             self.done = True
 
         flat_obs, full_obs = self._get_obs()
-        if full_obs is None:
-            full_obs = {}
-        full_obs.update({"p_grid": p_grid, "p_bess": p_bess, "cost": cost, "tariff": tariff,
-                         "penalty_applied": penalty_value, "bonus_applied": bonus_value,
-                         "overflow_penalty": overflow_penalty, "misalignment_penalty": misalignment_penalty,
-                         "time": t_current})
+        full_obs.update({"p_grid": p_grid, "p_bess": p_bess, "cost": cost, "time": t_current})
         return flat_obs, reward, self.done, full_obs
 
     def _get_obs(self, mode="normalized"):
+        """
+        Returns a tuple (flat_obs, full_obs) where:
+        - full_obs is a dictionary with keys: "pmax", "pmin", "pmax_norm", "pmin_norm",
+            "soc", "pv", "load", "balance_ratio", "soc_ratio", "hour_sin", "day_sin",
+            "month_sin", "weekday", "pv_hist", "load_hist".
+        - flat_obs is a flattened vector built by concatenating the values for keys in self.obs_keys.
+        
+        The 'mode' parameter selects whether observations are normalized or raw.
+        """
+        # Create an empty dictionary to store observations
         obs = {}
-        if self.current_idx >= len(self.pv_series):
-            return np.zeros(len(self.obs_keys), dtype=np.float32), None
 
+        # Get current timestamp and raw readings
         t_current = pd.to_datetime(self.pv_series.index[self.current_idx])
         p_pv_raw = self.pv_series.iloc[self.current_idx]
         p_load_raw = self.load_series.iloc[self.current_idx]
 
+        # Compute PV, load, and SOC based on the mode (normalized or raw)
         if mode == "normalized":
             obs["pv"] = p_pv_raw * self.PVmax / self.Pnom
             obs["load"] = p_load_raw * self.Loadmax / self.Pnom
@@ -233,14 +246,17 @@ class EnergyEnv(gym.Env):
             obs["pmin_norm"] = self.PEDS_min
             obs["soc"] = self.soc
 
+        # Compute temporal encodings
         obs["hour_sin"] = np.sin(2 * np.pi * (t_current.hour / 24.0))
         obs["day_sin"] = np.sin(2 * np.pi * (t_current.day / 31.0))
         obs["month_sin"] = np.sin(2 * np.pi * (t_current.month / 12.0))
         obs["weekday"] = float(t_current.weekday())
 
+        # Derived quantities
         obs["balance_ratio"] = obs["pv"] - obs["load"]
-        obs["soc_ratio"] = obs["soc"] * self.Emax / self.dt
+        obs["soc_ratio"] = obs["soc"] * self.Emax / self.dt  # Adjust the formula if needed
 
+        # Build history for PV and Load with zero padding if necessary
         history_length = 288
         if self.current_idx >= history_length:
             pv_hist = self.pv_series.iloc[self.current_idx - history_length:self.current_idx].values
@@ -260,14 +276,18 @@ class EnergyEnv(gym.Env):
             obs["pv_hist"] = np.array(pv_hist * self.PVmax).flatten()
             obs["load_hist"] = np.array(load_hist * self.Loadmax).flatten()
 
+        # Add constant EDS values
         obs["pmax"] = self.PEDS_max
         obs["pmin"] = self.PEDS_min
 
+        # Build the flat observation vector based on self.obs_keys
         flat_obs = np.concatenate([
             np.array(obs[k], dtype=np.float32).flatten() for k in self.obs_keys if k in obs
         ])
 
         return flat_obs, obs
+
+
 
     def render(self, mode='human'):
         print(f"Battery SoC: {self.soc:.2f}")
@@ -275,6 +295,7 @@ class EnergyEnv(gym.Env):
         print(f"Current Load (normalized): {self.load_series.iloc[self.current_idx]}")
 
 if __name__ == "__main__":
+    # Debug block for manual testing.
     env = EnergyEnv(data_dir='data')
     obs = env.reset()
     print("Initial observation:", obs)

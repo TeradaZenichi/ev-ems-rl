@@ -19,7 +19,9 @@
   "timestep": 5,
   "RL": {
     "Penalty": 0.1,
-    "Bonus": 0.1
+    "Bonus": 0.1,
+    "bess_penalty": 0.3,
+    "misalignment_penalty": 0.5
   },
   "EDS": {
     "Pmax": 5,
@@ -53,15 +55,15 @@
     }
   },
   "MODEL": {
-    "MODEL_PATH": "opt/DDQN/", 
-    "MODEL_TYPE": "CDDQN"
+    "MODEL_PATH": "opt/DQN/", 
+    "MODEL_TYPE": "MHADDQN"
   },
   "ENV":{
-    "MODE": "train",
+    "MODE": "test",
     "randomize": "True",
     "curriculum": "True",
     "curriculum_steps": 10,
-    "curriculum_increment": 0.01,
+    "curriculum_increment": 0.001,
     "curriculum_max": 1.0,
     "difficulty": 0.1,
     "randomize_observations":{
