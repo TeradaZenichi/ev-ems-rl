@@ -201,3 +201,112 @@ class MHADDQN(nn.Module):
         q = value + advantage - advantage.mean(dim=1, keepdim=True)  # Dueling
 
         return q
+
+
+import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class HMHADDQN(nn.Module):
+    """
+    Historical Multi‑Head Attention Dueling DQN
+    com Positional Encoding Aprendível (Learnable Encoding)
+    """
+    def __init__(
+        self,
+        state_dim: int,
+        action_dim: int,
+        history_len: int = 4,
+        d_model: int = 128,
+        num_heads: int = 4,
+        d_ff: int = 128,
+        dropout: float = 0.1,
+    ):
+        super().__init__()
+        self.state_dim   = state_dim
+        self.history_len = history_len
+        self.d_model     = d_model     # == d_key == d_value
+
+        # 1.  Embedding do vetor de observação de cada passo
+        self.input_proj = nn.Linear(state_dim, d_model)
+
+        # 2.  Positional encodings **aprendíveis**
+        #     Shape: (history_len, d_model)
+        self.pos_embed = nn.Parameter(torch.randn(history_len, d_model) * 0.02)
+
+        # 3.  Multi‑head self‑attention (batch_first=True ⇒ entradas (B, T, D))
+        self.attn = nn.MultiheadAttention(
+            embed_dim=d_model,
+            num_heads=num_heads,
+            batch_first=True,
+            dropout=dropout
+        )
+
+        # 4.  Feed‑forward pós‑atenção
+        self.ff = nn.Sequential(
+            nn.Linear(d_model, d_ff),
+            nn.ReLU(),
+            nn.Dropout(dropout)
+        )
+
+        # 5.  Dueling heads
+        hidden_v = d_ff // 2
+        hidden_a = d_ff // 2
+
+        self.value_stream = nn.Sequential(
+            nn.Linear(d_ff, hidden_v),
+            nn.ReLU(),
+            nn.Linear(hidden_v, 1)
+        )
+        self.adv_stream = nn.Sequential(
+            nn.Linear(d_ff, hidden_a),
+            nn.ReLU(),
+            nn.Linear(hidden_a, action_dim)
+        )
+
+        self._reset_parameters()
+
+    # ------------------------------------------------------------------ #
+    # forward
+    # ------------------------------------------------------------------ #
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Args
+        ----
+        x : (B, T, state_dim)  — T == history_len
+
+        Returns
+        -------
+        q_values : (B, action_dim)
+        """
+        B, T, _ = x.shape
+        assert T == self.history_len, "input seq len must equal history_len"
+
+        # 1) projeto para d_model e somo PE aprendível
+        x = self.input_proj(x) + self.pos_embed   # broadcast PE → (T,d) + (B,T,d)
+
+        # 2) atenção (query=key=value=x)
+        attn_out, _ = self.attn(x, x, x)          # (B, T, d_model)
+
+        # 3) agrego contexto (média temporal)
+        context = attn_out.mean(dim=1)            # (B, d_model)
+
+        # 4) feed‑forward
+        feat = self.ff(context)                   # (B, d_ff)
+
+        # 5) dueling
+        value      = self.value_stream(feat)      # (B, 1)
+        advantage  = self.adv_stream(feat)        # (B, A)
+        q_values   = value + advantage - advantage.mean(dim=1, keepdim=True)
+
+        return q_values.squeeze(-1)
+
+    # ------------------------------------------------------------------ #
+    # helpers
+    # ------------------------------------------------------------------ #
+    def _reset_parameters(self):
+        nn.init.xavier_uniform_(self.input_proj.weight)
+        nn.init.zeros_(self.input_proj.bias)
+        # pos_embed já inicializado ~N(0,0.02)
+

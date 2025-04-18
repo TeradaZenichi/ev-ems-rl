@@ -49,7 +49,7 @@ class EnergyEnv(gym.Env):
         self.load_data = pd.read_csv(os.path.join(data_dir, 'load_5min.csv'), index_col='timestamp', parse_dates=['timestamp'])
         self.pv_series = self.pv_data['p_norm']
         self.load_series = self.load_data['p_norm']
-
+        
         self.start_idx = start_idx
         self.episode_length = episode_length
         self.current_idx = self.start_idx
@@ -65,6 +65,21 @@ class EnergyEnv(gym.Env):
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32)
 
         self.reset()
+
+    def new_training_episode(self, start_idx):
+        """
+        Starts a new training episode with the specified start index and episode length.
+        """
+        self.start_idx = start_idx
+        self.current_idx = self.start_idx
+        self.end_idx = self.start_idx + self.episode_length
+        self.soc = self.initial_soc
+        self.done = False
+        self.difficulty = float(self.params["ENV"]["difficulty"])
+        self.episode_counter = 0
+        self.reset()
+        return self._get_obs()[0]  # Return the flattened observation
+
     
     def reset(self):
         """

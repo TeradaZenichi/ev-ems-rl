@@ -59,11 +59,11 @@
     "MODEL_TYPE": "MHADDQN"
   },
   "ENV":{
-    "MODE": "test",
+    "MODE": "train",
     "randomize": "True",
     "curriculum": "True",
     "curriculum_steps": 10,
-    "curriculum_increment": 0.001,
+    "curriculum_increment": 0.01,
     "curriculum_max": 1.0,
     "difficulty": 0.1,
     "randomize_observations":{

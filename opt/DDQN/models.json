@@ -66,6 +66,38 @@
   },
   "MHADDQN": {
     "start_idx": 0,
+    "episode_length": 288,
+    "num_episodes": 1000,
+    "batch_size": 64,
+    "gamma": 0.99,
+    "epsilon_start": 1.0,
+    "epsilon_final": 0.05,
+    "epsilon_decay": 300,
+    "target_update": 5,
+    "replay_buffer_capacity": 10000,
+    "learning_rate": 0.0001,
+    "discrete_action_size": 501,
+    "NUN_DAYS": 30,
+    "observations": [
+      "pmax",
+      "pmin",
+      "soc",
+      "pv",
+      "load",
+      "hour_sin",
+      "day_sin",
+      "month_sin"
+    ],
+    "hl_size": 128,
+    "num_heads": 8,
+    "mha_dim": 64,
+    "ff_dim": 128,
+    "model_save_name": "mhaddqn_energy.pth",
+    "reward_json_name": "episode_rewards_mhaddqn.json",
+    "training_txt_name": "training_details_mhaddqn.txt"
+  },
+  "HMHADDQN": {
+    "start_idx": 0,
     "episode_length": 1440,
     "num_episodes": 10000,
     "batch_size": 64,
@@ -74,7 +106,7 @@
     "epsilon_final": 0.05,
     "epsilon_decay": 3000,
     "target_update": 5,
-    "replay_buffer_capacity": 10000,
+    "replay_buffer_capacity": 12000,
     "learning_rate": 0.0001,
     "discrete_action_size": 501,
     "observations": [
@@ -85,12 +117,13 @@
       "load",
       "hour_sin"
     ],
-    "hl_size": 128,         
-    "num_heads": 8,         
-    "mha_dim": 64,          
-    "ff_dim": 128,         
-    "model_save_name": "mhaddqn_energy.pth",
-    "reward_json_name": "episode_rewards_mhaddqn.json",
-    "training_txt_name": "training_details_mhaddqn.txt"
+    "history_len": 4,
+    "hl_size": 128,
+    "num_heads": 8,
+    "ff_dim": 128,
+    "pe_learnable": true,
+    "model_save_name": "hmhaddqn_energy.pth",
+    "reward_json_name": "episode_rewards_hmhaddqn.json",
+    "training_txt_name": "training_details_hmhaddqn.txt"
   }
 }
