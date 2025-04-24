@@ -3,7 +3,7 @@ import json
 
 if __name__ == "__main__":
     # Define test indices as desired
-    START_IDX = 288 * 0  # for example, starting at day 30
+    START_IDX = 288 * 1  # for example, starting at day 30
     END_IDX = START_IDX +1*288  # one day (288 steps)
 
    
@@ -21,8 +21,8 @@ if __name__ == "__main__":
     # else:
     #     print("Testing mode")
 
-    if config["MODEL"]["MODEL_TYPE"] in ["DDQN", "CDDQN", "HMHADDQN"]:
-        print(f"Training DDQN model {config["MODEL"]["MODEL_TYPE"]}")
-        test_ddqn_model(START_IDX, END_IDX)   
+    if config["MODEL"]["MODEL_TYPE"] in ["DDQN", "CDDQN", "HMHADDQN", "NHMHADDQN"]:
+        print(f"test DDQN model {config["MODEL"]["MODEL_TYPE"]}")
+        test_ddqn_model(START_IDX, END_IDX,"train")   
 
 

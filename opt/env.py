@@ -12,7 +12,8 @@ class EnergyEnv(gym.Env):
                  start_idx=0,
                  episode_length=288,
                  test=False,
-                 observations=None):
+                 observations=None,
+                 data=None):
         super(EnergyEnv, self).__init__()
 
         # carrega parâmetros gerais
@@ -44,6 +45,10 @@ class EnergyEnv(gym.Env):
         mode = 'test' if self.test_mode else 'train'
         pv_file   = f'pv_5min_{mode}.csv'
         load_file = f'load_5min_{mode}.csv'
+
+        if data is not None:
+            pv_file   = f'pv_5min_{data}.csv'
+            load_file = f'load_5min_{data}.csv'
 
         self.pv_data = pd.read_csv(
             os.path.join(data_dir, pv_file),

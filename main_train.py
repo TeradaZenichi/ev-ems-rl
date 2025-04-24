@@ -14,6 +14,6 @@ if __name__ == "__main__":
         # stop running
         exit(0)
 
-    if config["MODEL"]["MODEL_TYPE"] in ["DDQN", "CDDQN", "MHADDQN", "HMHADDQN"]:
+    if config["MODEL"]["MODEL_TYPE"] in ["DDQN", "CDDQN", "MHADDQN", "HMHADDQN", "NHMHADDQN"]:
         print(f"Training D3QN model {config["MODEL"]["MODEL_TYPE"]}")
         train_and_evaluate()

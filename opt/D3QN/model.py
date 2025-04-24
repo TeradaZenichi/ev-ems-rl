@@ -303,22 +303,14 @@ class HMHADDQN(nn.Module):
 
 
 class NoisyLinear(nn.Module):
-    """
-    Noisy linear layer with factorized Gaussian noise.
-    y = (μ_W + σ_W ⊙ ε_W) x + (μ_b + σ_b ⊙ ε_b)
-    """
     def __init__(self, in_features, out_features, sigma_init=0.017):
         super().__init__()
         self.in_f, self.out_f = in_features, out_features
-        # learnable means
         self.mu_W = nn.Parameter(torch.empty(out_features, in_features))
         self.mu_b = nn.Parameter(torch.empty(out_features))
-        # learnable scales
         self.sigma_W = nn.Parameter(torch.full((out_features, in_features), sigma_init))
-        self.sigma_b = nn.Parameter(torch.full((out_features,),         sigma_init))
-        # buffers for noise
-        self.register_buffer("eps_W", torch.zeros(out_features, in_features))
-        self.register_buffer("eps_b", torch.zeros(out_features))
+        self.sigma_b = nn.Parameter(torch.full((out_features,), sigma_init))
+        # já não precisamos mais desses buffers para a forward
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -328,16 +320,16 @@ class NoisyLinear(nn.Module):
 
     def forward(self, x):
         if self.training:
-            # sample noise only in training
-            self.eps_W.normal_()
-            self.eps_b.normal_()
-            W = self.mu_W + self.sigma_W * self.eps_W
-            b = self.mu_b + self.sigma_b * self.eps_b
+            # amostragem OUT-OF-PLACE
+            eps_W = torch.randn_like(self.sigma_W)
+            eps_b = torch.randn_like(self.sigma_b)
+            W = self.mu_W + self.sigma_W * eps_W
+            b = self.mu_b + self.sigma_b * eps_b
         else:
-            # in eval mode use only the learned means
             W = self.mu_W
             b = self.mu_b
         return F.linear(x, W, b)
+
 
 
 class NHMHADDQN(nn.Module):

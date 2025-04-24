@@ -58,7 +58,7 @@
   },
   "MODEL": {
     "MODEL_PATH": "opt/D3QN/", 
-    "MODEL_TYPE": "HMHADDQN"
+    "MODEL_TYPE": "NHMHADDQN"
   },
   "ENV":{
     "MODE": "train",
