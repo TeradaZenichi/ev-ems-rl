@@ -1,5 +1,4 @@
-from opt.DQN.train import train as train_dqn
-from opt.DDQN.train import train as train_ddqn
+from opt.D3QN.train import train_and_evaluate
 import os
 import json
 
@@ -15,9 +14,6 @@ if __name__ == "__main__":
         # stop running
         exit(0)
 
-    if config["MODEL"]["MODEL_TYPE"] in ["DQN", "LSTMDQN", "SelfAttentionDQN"]:
-        print(f"Training DQN model: {config["MODEL"]["MODEL_TYPE"]}")
-        train_dqn()
-    elif config["MODEL"]["MODEL_TYPE"] in ["DDQN", "CDDQN", "MHADDQN"]:
-        print(f"Training DDQN model {config["MODEL"]["MODEL_TYPE"]}")
-        train_ddqn()
+    if config["MODEL"]["MODEL_TYPE"] in ["DDQN", "CDDQN", "MHADDQN", "HMHADDQN"]:
+        print(f"Training D3QN model {config["MODEL"]["MODEL_TYPE"]}")
+        train_and_evaluate()

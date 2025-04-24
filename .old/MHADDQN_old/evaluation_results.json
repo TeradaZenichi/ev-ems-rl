@@ -1,0 +1,182 @@
+{
+  "day_1": {
+    "checkpoint": "MHADDQN_day1.pth",
+    "start_idx": 0,
+    "total_reward": -107.1852085464174,
+    "total_cost": 99.79257596992022
+  },
+  "day_10": {
+    "checkpoint": "MHADDQN_day10.pth",
+    "start_idx": 0,
+    "total_reward": -135.2439695506081,
+    "total_cost": 111.40452383489412
+  },
+  "day_11": {
+    "checkpoint": "MHADDQN_day11.pth",
+    "start_idx": 0,
+    "total_reward": -115.53827403086296,
+    "total_cost": 96.02862461409174
+  },
+  "day_12": {
+    "checkpoint": "MHADDQN_day12.pth",
+    "start_idx": 0,
+    "total_reward": -115.12337254871616,
+    "total_cost": 113.25637940167562
+  },
+  "day_13": {
+    "checkpoint": "MHADDQN_day13.pth",
+    "start_idx": 0,
+    "total_reward": -178.2325705094938,
+    "total_cost": 114.45929126801362
+  },
+  "day_14": {
+    "checkpoint": "MHADDQN_day14.pth",
+    "start_idx": 0,
+    "total_reward": -120.52192716876327,
+    "total_cost": 106.95861405397407
+  },
+  "day_15": {
+    "checkpoint": "MHADDQN_day15.pth",
+    "start_idx": 0,
+    "total_reward": -153.87982289844692,
+    "total_cost": 120.73500867004388
+  },
+  "day_16": {
+    "checkpoint": "MHADDQN_day16.pth",
+    "start_idx": 0,
+    "total_reward": -188.67965881395756,
+    "total_cost": 131.39585789589674
+  },
+  "day_17": {
+    "checkpoint": "MHADDQN_day17.pth",
+    "start_idx": 0,
+    "total_reward": -134.17469081975355,
+    "total_cost": 109.69642844625368
+  },
+  "day_18": {
+    "checkpoint": "MHADDQN_day18.pth",
+    "start_idx": 0,
+    "total_reward": -113.07782915865069,
+    "total_cost": 107.26130869007129
+  },
+  "day_19": {
+    "checkpoint": "MHADDQN_day19.pth",
+    "start_idx": 0,
+    "total_reward": -162.53155455019126,
+    "total_cost": 124.42453158902511
+  },
+  "day_2": {
+    "checkpoint": "MHADDQN_day2.pth",
+    "start_idx": 0,
+    "total_reward": -97.948641362864,
+    "total_cost": 104.11711546965843
+  },
+  "day_20": {
+    "checkpoint": "MHADDQN_day20.pth",
+    "start_idx": 0,
+    "total_reward": -131.79718920902042,
+    "total_cost": 108.0805392621839
+  },
+  "day_21": {
+    "checkpoint": "MHADDQN_day21.pth",
+    "start_idx": 0,
+    "total_reward": -145.19737037986184,
+    "total_cost": 112.93451402822849
+  },
+  "day_22": {
+    "checkpoint": "MHADDQN_day22.pth",
+    "start_idx": 0,
+    "total_reward": -133.75621459008403,
+    "total_cost": 110.55093050119557
+  },
+  "day_23": {
+    "checkpoint": "MHADDQN_day23.pth",
+    "start_idx": 0,
+    "total_reward": -115.99150383609654,
+    "total_cost": 108.35220931361818
+  },
+  "day_24": {
+    "checkpoint": "MHADDQN_day24.pth",
+    "start_idx": 0,
+    "total_reward": -99.20536483710725,
+    "total_cost": 106.36475532669746
+  },
+  "day_25": {
+    "checkpoint": "MHADDQN_day25.pth",
+    "start_idx": 0,
+    "total_reward": -110.97203814303607,
+    "total_cost": 103.44438672776694
+  },
+  "day_26": {
+    "checkpoint": "MHADDQN_day26.pth",
+    "start_idx": 0,
+    "total_reward": -125.05575641121929,
+    "total_cost": 98.44298814163379
+  },
+  "day_27": {
+    "checkpoint": "MHADDQN_day27.pth",
+    "start_idx": 0,
+    "total_reward": -188.1398052449943,
+    "total_cost": 127.70018113976325
+  },
+  "day_28": {
+    "checkpoint": "MHADDQN_day28.pth",
+    "start_idx": 0,
+    "total_reward": -98.40571393199919,
+    "total_cost": 99.72243141519225
+  },
+  "day_29": {
+    "checkpoint": "MHADDQN_day29.pth",
+    "start_idx": 0,
+    "total_reward": -95.80759276621939,
+    "total_cost": 99.44289568000654
+  },
+  "day_3": {
+    "checkpoint": "MHADDQN_day3.pth",
+    "start_idx": 0,
+    "total_reward": -123.71933634062948,
+    "total_cost": 105.7422899458055
+  },
+  "day_30": {
+    "checkpoint": "MHADDQN_day30.pth",
+    "start_idx": 0,
+    "total_reward": -140.00310157287535,
+    "total_cost": 111.10807206259736
+  },
+  "day_4": {
+    "checkpoint": "MHADDQN_day4.pth",
+    "start_idx": 0,
+    "total_reward": -110.38306636201482,
+    "total_cost": 101.55154886095589
+  },
+  "day_5": {
+    "checkpoint": "MHADDQN_day5.pth",
+    "start_idx": 0,
+    "total_reward": -183.43184275868947,
+    "total_cost": 127.39206365826257
+  },
+  "day_6": {
+    "checkpoint": "MHADDQN_day6.pth",
+    "start_idx": 0,
+    "total_reward": -109.55697223134436,
+    "total_cost": 98.72572691160806
+  },
+  "day_7": {
+    "checkpoint": "MHADDQN_day7.pth",
+    "start_idx": 0,
+    "total_reward": -99.06092149575741,
+    "total_cost": 93.97374949789365
+  },
+  "day_8": {
+    "checkpoint": "MHADDQN_day8.pth",
+    "start_idx": 0,
+    "total_reward": -86.6151500101852,
+    "total_cost": 84.6115327183416
+  },
+  "day_9": {
+    "checkpoint": "MHADDQN_day9.pth",
+    "start_idx": 0,
+    "total_reward": -123.00863737154324,
+    "total_cost": 118.04852388232104
+  }
+}

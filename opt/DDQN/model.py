@@ -203,10 +203,6 @@ class MHADDQN(nn.Module):
         return q
 
 
-import math
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 
 class HMHADDQN(nn.Module):
     """
@@ -283,16 +279,9 @@ class HMHADDQN(nn.Module):
         B, T, _ = x.shape
         assert T == self.history_len, "input seq len must equal history_len"
 
-        # 1) projeto para d_model e somo PE aprendível
         x = self.input_proj(x) + self.pos_embed   # broadcast PE → (T,d) + (B,T,d)
-
-        # 2) atenção (query=key=value=x)
         attn_out, _ = self.attn(x, x, x)          # (B, T, d_model)
-
-        # 3) agrego contexto (média temporal)
         context = attn_out.mean(dim=1)            # (B, d_model)
-
-        # 4) feed‑forward
         feat = self.ff(context)                   # (B, d_ff)
 
         # 5) dueling
