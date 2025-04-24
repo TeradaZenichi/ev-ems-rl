@@ -1,4 +1,4 @@
-from opt.DDQN.test_checkpoints import *
+from opt.D3QN.test_checkpoints import *
 
 if __name__ == "__main__":
     # Load configuration file

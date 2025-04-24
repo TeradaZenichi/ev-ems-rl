@@ -3,8 +3,8 @@ import json
 
 if __name__ == "__main__":
     # Define test indices as desired
-    START_IDX = 288 * 1  # for example, starting at day 30
-    END_IDX = START_IDX +1*288  # one day (288 steps)
+    START_IDX = 288 * 0  # for example, starting at day 30
+    END_IDX = START_IDX +2*288  # one day (288 steps)
 
    
     # save model_config to file

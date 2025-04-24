@@ -22,7 +22,7 @@ torch.backends.cudnn.benchmark = False
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-# --- Prioritized Experience Replay Buffer (unchanged) ---
+# --- 1) Prioritized Experience Replay Buffer ---
 class PrioritizedReplayBuffer:
     def __init__(self, capacity, alpha=0.6):
         self.capacity   = capacity
@@ -32,10 +32,7 @@ class PrioritizedReplayBuffer:
         self.priorities = np.zeros((capacity,), dtype=np.float32)
 
     def push(self, state, action, reward, next_state, done):
-        if len(self.buffer) == 0:
-            max_prio = 1.0
-        else:
-            max_prio = self.priorities[:len(self.buffer)].max()
+        max_prio = self.priorities.max() if self.buffer else 1.0
         if len(self.buffer) < self.capacity:
             self.buffer.append((state, action, reward, next_state, done))
         else:
@@ -47,25 +44,14 @@ class PrioritizedReplayBuffer:
         N = len(self.buffer)
         prios = self.priorities[:N]
         probs = prios ** self.alpha
-        total = probs.sum()
-        if total == 0:
-            probs = np.ones_like(probs) / N
-        else:
-            probs /= total
+        probs /= probs.sum()
         indices = np.random.choice(N, batch_size, p=probs)
-        transitions = [self.buffer[i] for i in indices]
+        samples = [self.buffer[i] for i in indices]
         weights = (N * probs[indices]) ** (-beta)
         weights /= weights.max()
-        states, actions, rewards, next_states, dones = zip(*transitions)
-        return (
-            np.array(states),
-            np.array(actions),
-            np.array(rewards),
-            np.array(next_states),
-            np.array(dones),
-            weights,
-            indices
-        )
+        states, actions, rewards, next_states, dones = zip(*samples)
+        return (np.array(states), np.array(actions), np.array(rewards),
+                np.array(next_states), np.array(dones), weights, indices)
 
     def update_priorities(self, indices, td_errors):
         for idx, err in zip(indices, td_errors):
@@ -81,6 +67,7 @@ def schedule_epsilon(ep, eps_start, eps_final, eps_decay):
 
 
 def select_action(state, net, eps, actions, model_type):
+    # if using NoisyNets, eps should be zero and noise provides exploration
     if random.random() < eps:
         return random.randrange(len(actions))
     to_tensor = lambda x: torch.FloatTensor(x).unsqueeze(0).to(DEVICE)
@@ -98,94 +85,69 @@ def build_models(model_type, state_dim, action_dim, cfg):
     alpha = cfg.get("per_alpha", 0.6)
 
     if model_type == "CDDQN":
-        policy = CDDQN(
-            len(cfg["main_observations"]),
-            len(cfg["conditional_observations"]),
-            action_dim,
-            hl_size=cfg["hl_size"]
-        ).to(DEVICE)
-        target = CDDQN(
-            len(cfg["main_observations"]),
-            len(cfg["conditional_observations"]),
-            action_dim,
-            hl_size=cfg["hl_size"]
-        ).to(DEVICE)
+        policy = CDDQN(len(cfg["main_observations"]),
+                       len(cfg["conditional_observations"]),
+                       action_dim,
+                       hl_size=cfg["hl_size"]).to(DEVICE)
+        target = CDDQN(len(cfg["main_observations"]),
+                       len(cfg["conditional_observations"]),
+                       action_dim,
+                       hl_size=cfg["hl_size"]).to(DEVICE)
 
     elif model_type == "HMHADDQN":
-        policy = HMHADDQN(
-            state_dim,
-            action_dim,
-            history_len=cfg["history_len"],
-            d_model=cfg["hl_size"],
-            num_heads=cfg["num_heads"],
-            d_ff=cfg["ff_dim"]
-        ).to(DEVICE)
-        target = HMHADDQN(
-            state_dim,
-            action_dim,
-            history_len=cfg["history_len"],
-            d_model=cfg["hl_size"],
-            num_heads=cfg["num_heads"],
-            d_ff=cfg["ff_dim"]
-        ).to(DEVICE)
+        policy = HMHADDQN(state_dim,
+                          action_dim,
+                          history_len=cfg["history_len"],
+                          d_model=cfg["hl_size"],
+                          num_heads=cfg["num_heads"],
+                          d_ff=cfg["ff_dim"]).to(DEVICE)
+        target = HMHADDQN(state_dim,
+                          action_dim,
+                          history_len=cfg["history_len"],
+                          d_model=cfg["hl_size"],
+                          num_heads=cfg["num_heads"],
+                          d_ff=cfg["ff_dim"]).to(DEVICE)
 
     elif model_type == "MHADDQN":
-        policy = MHADDQN(
-            state_dim,
-            action_dim,
-            hl_size=cfg["hl_size"],
-            num_heads=cfg["num_heads"],
-            ff_dim=cfg["ff_dim"]
-        ).to(DEVICE)
-        target = MHADDQN(
-            state_dim,
-            action_dim,
-            hl_size=cfg["hl_size"],
-            num_heads=cfg["num_heads"],
-            ff_dim=cfg["ff_dim"]
-        ).to(DEVICE)
+        policy = MHADDQN(state_dim, action_dim,
+                         hl_size=cfg["hl_size"],
+                         num_heads=cfg["num_heads"],
+                         ff_dim=cfg["ff_dim"]).to(DEVICE)
+        target = MHADDQN(state_dim, action_dim,
+                         hl_size=cfg["hl_size"],
+                         num_heads=cfg["num_heads"],
+                         ff_dim=cfg["ff_dim"]).to(DEVICE)
 
     elif model_type == "NHMHADDQN":
-        # correct keyword is d_model, not hl_size
-        policy = NHMHADDQN(
-            state_dim,
-            action_dim,
-            history_len=cfg["history_len"],
-            d_model=cfg["hl_size"],
-            num_heads=cfg["num_heads"],
-            d_ff=cfg["ff_dim"]
-        ).to(DEVICE)
-        target = NHMHADDQN(
-            state_dim,
-            action_dim,
-            history_len=cfg["history_len"],
-            d_model=cfg["hl_size"],
-            num_heads=cfg["num_heads"],
-            d_ff=cfg["ff_dim"]
-        ).to(DEVICE)
+        policy = NHMHADDQN(state_dim,
+                           action_dim,
+                           history_len=cfg["history_len"],
+                           d_model=cfg["hl_size"],
+                           num_heads=cfg["num_heads"],
+                           d_ff=cfg["ff_dim"]).to(DEVICE)
+        target = NHMHADDQN(state_dim,
+                           action_dim,
+                           history_len=cfg["history_len"],
+                           d_model=cfg["hl_size"],
+                           num_heads=cfg["num_heads"],
+                           d_ff=cfg["ff_dim"]).to(DEVICE)
 
     else:  # DDQN
-        policy = DDQN(
-            state_dim,
-            action_dim,
-            hl_size=cfg["hl_size"]
-        ).to(DEVICE)
-        target = DDQN(
-            state_dim,
-            action_dim,
-            hl_size=cfg["hl_size"]
-        ).to(DEVICE)
+        policy = DDQN(state_dim, action_dim,
+                      hl_size=cfg["hl_size"]).to(DEVICE)
+        target = DDQN(state_dim, action_dim,
+                      hl_size=cfg["hl_size"]).to(DEVICE)
 
     target.load_state_dict(policy.state_dict())
     make_replay = lambda: PrioritizedReplayBuffer(cap, alpha=alpha)
     return policy, target, make_replay
 
 
-# --- Run one episode (train or test) ---
+# --- Run one episode ---
 def run_episode(env, policy, target, replay, optimizer,
                 cfg, model_type, training=True):
     state = env.reset()
-    # initialize history buffer if needed
+    # for history‐based models (HMHADDQN & NHMHADDQN)
     if model_type in ("HMHADDQN", "NHMHADDQN"):
         hist = cfg["history_len"]
         seq = np.zeros((hist, state.shape[-1]), dtype=np.float32)
@@ -197,11 +159,8 @@ def run_episode(env, policy, target, replay, optimizer,
     policy.train() if training else policy.eval()
 
     for ep in range(cfg["max_steps"]):
-        
-        eps = schedule_epsilon(ep + 1, cfg["eps"], cfg["eps_final"], cfg["eps_decay"])
         a_idx = select_action(state, policy, cfg["eps"], cfg["actions"], model_type)
         action = np.array([cfg["actions"][a_idx]], dtype=np.float32)
-        
 
         next_obs, reward, done, info = env.step(action)
         total_reward += reward
@@ -229,6 +188,7 @@ def run_episode(env, policy, target, replay, optimizer,
             bd_t   = torch.FloatTensor(bd).unsqueeze(1).to(DEVICE)
             is_w_t = torch.FloatTensor(is_w).unsqueeze(1).to(DEVICE)
 
+            # double Q-learning update
             curr_q = policy(bs_t).gather(1, ba_t)
             with torch.no_grad():
                 next_q_policy = policy(bns_t)
@@ -253,7 +213,7 @@ def run_episode(env, policy, target, replay, optimizer,
 # --- Main Training & Evaluation ---
 def train_and_evaluate():
     gp     = json.load(open("data/parameters.json"))
-    mc_all = json.load(open("opt/D3QN/models.json"))
+    mc_all = json.load(open("opt/D3QN/models.json"))     # ← corrected path
     mtype  = gp["MODEL"]["MODEL_TYPE"].upper()
     cfg    = mc_all[mtype]
 
@@ -261,7 +221,6 @@ def train_and_evaluate():
     episode_length      = cfg["episode_length"]
     test_episode_length = cfg.get("test_episode_length", episode_length)
 
-    # initialize environment & action space
     env0 = EnergyEnv(
         data_dir="data",
         observations=cfg["observations"],
@@ -285,23 +244,23 @@ def train_and_evaluate():
         replay = make_replay()
         env0.new_training_episode(cfg["start_idx"] + day * episode_length)
 
-        model_base = cfg["model_save_name"].replace(".pth", f"_day{day+1}.pth")
-        model_path = os.path.join(ckpt_dir, model_base)
+        model_name = cfg["model_save_name"].replace(".pth", f"_day{day+1}.pth")
+        model_path = os.path.join(ckpt_dir, model_name)
 
         train_cfg = {
-            "max_steps":   episode_length,
-            "batch_size":  cfg["batch_size"],
-            "gamma":       cfg["gamma"],
-            "eps":         cfg["epsilon_start"],
-            "actions":     actions,
-            "per_beta":    gp.get("PER_BETA", 0.4),
+            "max_steps":  episode_length,
+            "batch_size": cfg["batch_size"],
+            "gamma":      cfg["gamma"],
+            "eps":        cfg["epsilon_start"],
+            "actions":    actions,
+            "per_beta":   gp.get("PER_BETA", 0.4),
             "history_len": cfg.get("history_len", 1)
         }
 
-        rewards = []
-        costs   = []
+        rewards, costs = [], []
 
         for ep in tqdm(range(cfg["num_episodes"]), desc=f"Day {day+1}/{ndays}"):
+            # 2) curriculum-driven epsilon schedule (noop if ε_start=ε_final=0)
             train_cfg["eps"] = schedule_epsilon(
                 ep,
                 cfg["epsilon_start"],
@@ -313,25 +272,26 @@ def train_and_evaluate():
             rewards.append(r)
             costs.append(c)
 
+            # 4) target network periodic sync
             if ep % cfg["target_update"] == 0:
                 target.load_state_dict(policy.state_dict())
 
+            # 6) noisy‐net: still print & save every 10 eps
             if ep % 10 == 0:
-                print(f"Day {day+1} Episode {ep:4d} →  Reward: {r:8.2f}   Cost: {c:8.2f}")
+                print(f"Day {day+1} Ep {ep:4d} → Reward: {r:8.2f}, Cost: {c:8.2f}")
                 torch.save(policy.state_dict(), model_path)
 
-        daily_r = sum(rewards)
-        daily_c = sum(costs)
-        print(f"=== Day {day+1} summary → Total Reward = {daily_r:.2f}, Total Cost = {daily_c:.2f} ===")
+        total_r, total_c = sum(rewards), sum(costs)
+        print(f"=== Day {day+1} Summary → Total Reward = {total_r:.2f}, Total Cost = {total_c:.2f} ===")
 
         # final save for the day
         torch.save(policy.state_dict(), model_path)
         with open(os.path.join(ckpt_dir, f"metadata_day{day+1}.json"), "w") as jf:
             json.dump({
-                "day":        day+1,
-                "start_idx":  cfg["start_idx"] + day * episode_length,
-                "total_reward": daily_r,
-                "total_cost":   daily_c
+                "day":          day+1,
+                "start_idx":    cfg["start_idx"] + day * episode_length,
+                "total_reward": total_r,
+                "total_cost":   total_c
             }, jf, indent=2)
 
     print("Training and evaluation complete.")
