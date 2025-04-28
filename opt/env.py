@@ -252,7 +252,7 @@ class EnergyEnv(gym.Env):
         # base reward
         reward  = - p_grid - grid_penalty - overflow_penalty + align_bonus
         # add new bonuses/penalties
-        reward += self._charge_bonus(p_bess, p_pv, p_load)
+        # reward += self._charge_bonus(p_bess, p_pv, p_load)
         reward += self._match_penalty(p_bess, p_pv, p_load)
 
         # advance
@@ -287,8 +287,8 @@ class EnergyEnv(gym.Env):
         obs = {
             "pv":        pv_raw * self.PVmax / self.Pnom,
             "load":      load_raw * self.Loadmax / self.Pnom,
-            "pmax_norm": self.PEDS_max / self.Pnom,
-            "pmin_norm": self.PEDS_min / self.Pnom,
+            "pmax": self.PEDS_max / self.Pnom,
+            "pmin": self.PEDS_min / self.Pnom,
             "soc":       self.soc * self.Emax / self.Pnom,
             "hour_sin":  np.sin(2*np.pi*(t.hour/24.0)),
             "day_sin":   np.sin(2*np.pi*(t.day/31.0)),

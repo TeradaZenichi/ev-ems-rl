@@ -57,7 +57,7 @@
     }
   },
   "MODEL": {
-    "MODEL_PATH": "opt/D3QN/", 
+    "MODEL_PATH": "data/", 
     "MODEL_TYPE": "NHMHADDQN"
   },
   "ENV":{
