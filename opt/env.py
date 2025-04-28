@@ -6,6 +6,14 @@ import os
 from gym import spaces
 
 class EnergyEnv(gym.Env):
+    """
+    Energy environment with PV, load, BESS, and curriculum learning support.
+
+    Attributes:
+        difficulty (float): current curriculum difficulty level
+        episode_counter (int): count of training episodes for curriculum
+        test_mode (bool): if True, environment in test mode (no randomization)
+    """
     def __init__(
         self,
         data_dir='data',
@@ -26,136 +34,152 @@ class EnergyEnv(gym.Env):
         self.bonus = self.params["RL"].get("Bonus", 0)
 
         # observation keys
-        self.obs_keys = observations or ["pv", "load", "pmax_norm", "pmin_norm", "soc", "hour_sin", "day_sin", "month_sin", "weekday"]
-        self.bess_params = self.params["BESS"]
-        self.initial_soc = self.bess_params["SoC0"]
-        self.Emax         = self.bess_params["Emax"]
-        self.Pmax_charge  = self.bess_params["Pmax_c"]
-        self.Pmax_discharge = self.bess_params["Pmax_d"]
-        self.eff          = self.bess_params["eff"]
-        self.dt           = self.params["timestep"] / 60.0
-        self.PEDS_max     = self.params["EDS"]["Pmax"]
-        self.PEDS_min     = self.params["EDS"]["Pmin"]
-        self.PVmax        = self.params["PV"]["Pmax"]
-        self.Loadmax      = self.params["Load"]["Pmax"]
-        self.cost_dict    = self.params["EDS"]["cost"]
-        self.difficulty   = float(self.params["ENV"]["difficulty"])
+        self.obs_keys = observations or [
+            "pv","load","pmax_norm","pmin_norm","soc",
+            "hour_sin","day_sin","month_sin","weekday"
+        ]
+        b = self.params["BESS"]
+        self.initial_soc    = b["SoC0"]
+        self.Emax           = b["Emax"]
+        self.Pmax_charge    = b["Pmax_c"]
+        self.Pmax_discharge= b["Pmax_d"]
+        self.eff            = b["eff"]
+        self.dt             = self.params["timestep"]/60.0
+        eds = self.params["EDS"]
+        self.PEDS_max = eds["Pmax"]
+        self.PEDS_min = eds["Pmin"]
+        self.cost_dict= eds.get("cost",{})
+        self.PVmax   = self.params["PV"]["Pmax"]
+        self.Loadmax = self.params["Load"]["Pmax"]
 
-        self.test_mode = test
+        self.difficulty      = float(self.params["ENV"]["difficulty"])
+        self.test_mode       = test
+        self.episode_counter = 0
 
-        # select train/test file suffix
-        mode = 'test' if self.test_mode else 'train'
+        mode = 'test' if test else 'train'
         if data is not None:
             mode = data
-
         pv_file   = f'pv_5min_{mode}.csv'
         load_file = f'load_5min_{mode}.csv'
 
-        self.pv_data   = pd.read_csv(os.path.join(data_dir, pv_file),
-                                     index_col='timestamp', parse_dates=['timestamp'])
-        self.load_data = pd.read_csv(os.path.join(data_dir, load_file),
-                                     index_col='timestamp', parse_dates=['timestamp'])
-
+        self.pv_data   = pd.read_csv(
+            os.path.join(data_dir,pv_file),
+            index_col='timestamp',parse_dates=['timestamp']
+        )
+        self.load_data = pd.read_csv(
+            os.path.join(data_dir,load_file),
+            index_col='timestamp',parse_dates=['timestamp']
+        )
         self.pv_series   = self.pv_data['p_norm']
         self.load_series = self.load_data['p_norm']
 
         self.start_idx      = start_idx
         self.episode_length = episode_length
-        self.current_idx    = self.start_idx
-        self.end_idx        = self.start_idx + self.episode_length
+        self.current_idx    = start_idx
+        self.end_idx        = start_idx + episode_length
 
+        # initialize state and done
+        self.soc  = self.initial_soc
+        self.done = False
+
+        # action space
         self.action_space = spaces.Box(
             low=-self.Pmax_discharge,
             high=self.Pmax_charge,
             shape=(1,),
             dtype=np.float32
         )
-
-        self.soc  = self.initial_soc
-        self.done = False
-
+        # obs space
         flat_obs, _ = self._get_obs()
         self.observation_space = spaces.Box(
-            low=-np.inf,
-            high=np.inf,
+            low=-np.inf,high=np.inf,
             shape=flat_obs.shape,
             dtype=np.float32
         )
 
         self.reset()
 
-    def new_training_episode(self, start_idx):
-        """
-        Reset indices and SoC for a new training episode.
-        """
+    def new_training_episode(self,start_idx):
         self.start_idx      = start_idx
-        self.current_idx    = self.start_idx
-        self.end_idx        = self.start_idx + self.episode_length
+        self.current_idx    = start_idx
+        self.end_idx        = start_idx + self.episode_length
         self.soc            = self.initial_soc
         self.done           = False
         self.difficulty     = float(self.params["ENV"]["difficulty"])
-        self.episode_counter = 0
+        self.episode_counter=0
         return self.reset()
 
     def reset(self):
-        """
-        Reset environment.
-        In test mode: keep SoC and indices fixed.
-        In train mode: apply curriculum and randomization.
-        """
+        # initialize flags
+        curriculum_applied=False
+        soc_randomized=False
+        eds_randomized=False
+        idx_randomized=False
+
         if self.test_mode:
             self.soc         = self.initial_soc
             self.current_idx = self.start_idx
             self.end_idx     = self.start_idx + self.episode_length
             self.done        = False
         else:
-            if not hasattr(self, "episode_counter"):
-                self.episode_counter = 0
-            self.episode_counter += 1
-
-            # curriculum update
-            env_cfg = self.params["ENV"]
-            if env_cfg.get("curriculum", "False").upper() == "TRUE" and \
-               self.episode_counter % int(env_cfg["curriculum_steps"]) == 0:
-                inc = float(env_cfg["curriculum_increment"])
-                mx  = float(env_cfg["curriculum_max"])
-                self.difficulty = min(self.difficulty + inc, mx)
-
-            rand_obs = env_cfg.get("randomize_observations", {})
-
-            # randomize SoC
-            if rand_obs.get("soc", "False").upper() == "TRUE" and env_cfg.get("randomize", "False").upper() == "TRUE":
-                soc_range = 0.05 + self.difficulty * 0.95
-                low  = max(0, 0.5 - soc_range/2)
-                high = min(1, 0.5 + soc_range/2)
-                self.soc = np.random.uniform(low, high)
+            if not hasattr(self,'episode_counter'):
+                self.episode_counter=0
+            self.episode_counter+=1
+            env_cfg=self.params['ENV']
+            # curriculum
+            if env_cfg.get('curriculum','False').upper()=='TRUE' and \
+               self.episode_counter%int(env_cfg['curriculum_steps'])==0:
+                inc=float(env_cfg['curriculum_increment'])
+                mx =float(env_cfg['curriculum_max'])
+                self.difficulty=min(self.difficulty+inc,mx)
+                curriculum_applied=True
+            # randomize
+            rand_obs=env_cfg.get('randomize_observations',{})
+            # soc
+            if rand_obs.get('soc','False').upper()=='TRUE' and env_cfg.get('randomize','False').upper()=='TRUE':
+                soc_randomized=True
+                soc_range=0.05+self.difficulty*0.95
+                low,high=max(0,0.5-soc_range/2),min(1,0.5+soc_range/2)
+                self.soc=np.random.uniform(low,high)
             else:
-                self.soc = self.initial_soc
-
-            # randomize EDS capacity
-            if rand_obs.get("eds", "False").upper() == "TRUE" and env_cfg.get("randomize", "False").upper() == "TRUE":
-                scale = 0.05 + self.difficulty
-                factor = 1 + np.random.uniform(-scale, scale)
-                self.PEDS_max = max(0, self.params["EDS"]["Pmax"] * factor)
-                self.PEDS_min = max(0, self.params["EDS"]["Pmin"] * factor)
+                self.soc=self.initial_soc
+            # eds
+            if rand_obs.get('eds','False').upper()=='TRUE' and env_cfg.get('randomize','False').upper()=='TRUE':
+                eds_randomized=True
+                scale=0.05+self.difficulty
+                factor=1+np.random.uniform(-scale,scale)
+                self.PEDS_max=max(0,self.params['EDS']['Pmax']*factor)
+                self.PEDS_min=max(0,self.params['EDS']['Pmin']*factor)
             else:
-                self.PEDS_max = self.params["EDS"]["Pmax"]
-                self.PEDS_min = self.params["EDS"]["Pmin"]
+                self.PEDS_max=self.params['EDS']['Pmax']
+                self.PEDS_min=self.params['EDS']['Pmin']
+            # idx
+            if rand_obs.get('idx','False').upper()=='TRUE' and env_cfg.get('randomize','False').upper()=='TRUE':
+                idx_randomized=True
+                limit=int((0.2+0.6*self.difficulty)*0.1*len(self.pv_series))
+                self.start_idx=np.random.randint(0,max(1,limit-self.episode_length))
+            # reset indices
+            self.current_idx=self.start_idx
+            self.end_idx    =self.start_idx+self.episode_length
+            self.done       =False
 
-            # randomize start index
-            if rand_obs.get("idx", "False").upper() == "TRUE" and env_cfg.get("randomize", "False").upper() == "TRUE":
-                limit = int((0.2 + 0.6*self.difficulty) * 0.1 * len(self.pv_series))
-                self.start_idx = np.random.randint(0, max(1, limit - self.episode_length))
-
-            self.current_idx = self.start_idx
-            self.end_idx     = self.start_idx + self.episode_length
-            self.done        = False
-
-            if self.episode_counter % 10 == 0:
-                print(f"Episode {self.episode_counter}: difficulty={self.difficulty:.2f}, SoC={self.soc:.2f}")
-
-        flat_obs, _ = self._get_obs()
+        flat_obs,_=self._get_obs()
+        # store info
+        self._last_curriculum_info={
+            'episode':self.episode_counter,
+            'difficulty':self.difficulty,
+            'curriculum_applied':curriculum_applied,
+            'soc_init':self.soc,
+            'soc_randomized':soc_randomized,
+            'eds_randomized':eds_randomized,
+            'idx_randomized':idx_randomized
+        }
         return flat_obs
+
+    def get_curriculum_info(self):
+        return getattr(self,'_last_curriculum_info',None)
+
+
 
     def _update_soc(self, p_bess):
         """
